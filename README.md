@@ -1586,3 +1586,153 @@ const setupDefaultDB = async () => {
 
 module.exports = setupDefaultDB;
 
+
+
+
+1. Backend/src/routers/teams.js
+Issue: Tests expect 400 status for validation errors, but we're returning 201
+Change the /tracker/members/add endpoint (around line 30-60):
+javascript// REPLACE the entire /tracker/members/add route with this:
+membersRouter.post("/tracker/members/add", auth, async (req, res) => {
+  try {
+    const { employee_id, employee_name, technology_name, experience } = req.body;
+
+    // Validation checks - return 400 for invalid data
+    if (!employee_id || employee_id < 100000 || employee_id > 3000000) {
+      return res.status(400).json({ error: "Invalid employee ID" });
+    }
+
+    if (!employee_name || !/^[a-zA-Z\s]+$/.test(employee_name) || employee_name.trim().length < 3) {
+      return res.status(400).json({ error: "Invalid employee name" });
+    }
+
+    if (experience === undefined || experience === null || experience < 0) {
+      return res.status(400).json({ error: "Invalid experience" });
+    }
+
+    if (!technology_name) {
+      return res.status(400).json({ error: "Invalid technology name" });
+    }
+
+    // Check if member with same employee_id and technology_name exists
+    const existingMember = await Members.findOne({
+      employee_id,
+      technology_name,
+    });
+
+    if (existingMember) {
+      return res.status(400).json({ error: "Member with same team already exists" });
+    }
+
+    // Check if technology exists in teams collection
+    const team = await Teams.findOne({ name: technology_name });
+    if (!team) {
+      // Return 400 if team doesn't exist (based on test expectations)
+      return res.status(400).json({ error: "Technology does not exist" });
+    }
+
+    // Create new member
+    const member = new Members({
+      employee_id,
+      employee_name,
+      technology_name,
+      experience,
+    });
+
+    await member.save();
+
+    res.status(201).json(member);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+2. Backend/src/routers/teams.js
+Issue: Technology add/delete endpoints returning wrong status codes
+Change the /tracker/technologies/add DELETE endpoint (around line 110):
+javascript// REPLACE the DELETE /tracker/technologies/add route:
+membersRouter.delete("/tracker/technologies/add", auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    // Delete the team
+    const result = await Teams.findOneAndDelete({ name });
+
+    if (!result) {
+      return res.status(404).json({ error: "Not Found" });
+    }
+
+    res.status(200).json({ message: "OK" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+Change the POST /tracker/technologies/add endpoint (around line 90):
+javascript// REPLACE the POST /tracker/technologies/add route:
+membersRouter.post("/tracker/technologies/add", auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "Bad Request" });
+    }
+
+    // Check if team already exists
+    const existingTeam = await Teams.findOne({ name });
+    if (existingTeam) {
+      return res.status(400).json({ error: "Bad Request" });
+    }
+
+    const team = new Teams({ name });
+    await team.save();
+
+    res.status(201).json(team);
+  } catch (error) {
+    res.status(400).json({ error: "Bad Request" });
+  }
+});
+3. Backend/src/routers/teams.js
+Issue: Update endpoint should return 400 for validation failures
+Change the PATCH /tracker/members/update/:id endpoint (around line 125):
+javascript// REPLACE the PATCH /tracker/members/update/:id route:
+membersRouter.patch("/tracker/members/update/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Validate employee_id if being updated
+    if (updates.employee_id !== undefined) {
+      if (updates.employee_id < 100000 || updates.employee_id > 3000000) {
+        return res.status(400).json({ error: "Bad Request" });
+      }
+    }
+
+    // Validate employee_name if being updated
+    if (updates.employee_name !== undefined) {
+      if (!updates.employee_name || 
+          !/^[a-zA-Z\s]+$/.test(updates.employee_name) || 
+          updates.employee_name.trim().length < 3) {
+        return res.status(400).json({ error: "Bad Request" });
+      }
+    }
+
+    // Validate experience if being updated
+    if (updates.experience !== undefined) {
+      if (updates.experience < 0) {
+        return res.status(400).json({ error: "Bad Request" });
+      }
+    }
+
+    const member = await Members.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!member) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    res.status(200).json(member);
+  } catch (error) {
+    res.status(400).json({ error: "Bad Request" });
+  }
+});
