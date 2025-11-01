@@ -1356,7 +1356,7 @@ membersRouter.delete("/tracker/technologies/remove/:name", auth, async (req, res
     if (!result) {
       return res.status(404).json({ error: "Team not found" });
     }
-
+    await Members.deleteMany({technology_name})
     res.status(200).json({ message: "Team deleted successfully" });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -1736,5 +1736,6 @@ membersRouter.patch("/tracker/members/update/:id", auth, async (req, res) => {
     res.status(400).json({ error: "Bad Request" });
   }
 });
+
 
 
