@@ -1328,7 +1328,7 @@ membersRouter.get("/tracker/technologies/get", auth, async (req, res) => {
 // 4) /tracker/technologies/add -> POST Method
 membersRouter.post("/tracker/technologies/add", auth, async (req, res) => {
   try {
-    const { name } = req.body['technology_name'];
+    const  name = req.body['technology_name'];
 
     // Check if team already exists
     const existingTeam = await Teams.findOne({ name });
@@ -1736,4 +1736,5 @@ membersRouter.patch("/tracker/members/update/:id", auth, async (req, res) => {
     res.status(400).json({ error: "Bad Request" });
   }
 });
+
 
